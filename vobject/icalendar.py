@@ -698,6 +698,17 @@ class TextBehavior(behavior.Behavior):
 
     base64string = "BASE64"  # vCard uses B
 
+    # Value types whose content is not TEXT. RFC 5545 section 3.3.11 defines
+    # backslash escaping only for TEXT, so a comma in e.g. a URI is data, not a
+    # list separator. Apple's X-APPLE-STRUCTURED-LOCATION;VALUE=URI:geo:lat,lon
+    # lost its longitude here.
+    rawValueTypes = ("URI", "CAL-ADDRESS")
+
+    @classmethod
+    def _isRaw(cls, line):
+        value = line.params.get("VALUE")
+        return bool(value) and value[0].upper() in cls.rawValueTypes
+
     @classmethod
     def decode(cls, line):
         """
@@ -707,6 +718,8 @@ class TextBehavior(behavior.Behavior):
             encoding = getattr(line, "encoding_param", None)
             if encoding and encoding.upper() == cls.base64string:
                 line.value = base64.b64decode(line.value)
+            elif cls._isRaw(line):
+                pass
             else:
                 line.value = stringToTextValues(line.value)[0]
             line.encoded = False
@@ -720,6 +733,8 @@ class TextBehavior(behavior.Behavior):
             encoding = getattr(line, "encoding_param", None)
             if encoding and encoding.upper() == cls.base64string:
                 line.value = base64.b64encode(line.value.encode("utf-8")).decode("utf-8").replace("\n", "")
+            elif cls._isRaw(line):
+                pass
             else:
                 line.value = backslashEscape(line.value)
             line.encoded = True
